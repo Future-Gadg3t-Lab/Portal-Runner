@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>running game</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+		<link type="text/css" rel="stylesheet" href="css/main.css">
+		<link rel="stylesheet" type="text/css" href="./css/levelStyle.css">
+		<style>		
+			.ac {  /* prevent dat-gui from being selected */
+				-webkit-user-select: none;
+				-moz-user-select: none;
+				-ms-user-select: none;
+				user-select: none;
+			}
+		</style>
+	</head>
+	<body>
+		<div class="loading" id="js-loader">
+			<div class="loader"></div>
+		</div>
+		<div id="container"></div>
+		<div id="info">
+			<h2 id="info-head">Earth ,and it's universe, is a simulation.</h2>
+			<p id="info-text">
+				Very few of it's inhabitants know this (e.g Douglas Adams who gave to his fellow humans the clue: Earth is the 42nd simulation).
+				The five programmers of Earth left a few easter eggs across the world. Naturally 
+				those with curious minds ,and resources to back that, have a chance to find the easter eggs. Three wealthy humans have found one: A
+				set of tunnels with portals connecting Pisa and Sweden.
+			</p>
+			<p id="info-text">
+				<b>Click the names</b> (under models) to see each character and then <b>Start with</b> who you desire to use. <b>Enjoy</b> 
+			</p>
+		</div>
+		<script type="module">
+
+			import * as THREE from './scripts/build/three.module.js';
+
+			import Stats from './scripts/stats.module.js';
+			import { GUI } from './scripts/dat.gui.module.js';
+			import {OrbitControls} from './scripts/OrbitControls.js';
+			import { GLTFLoader } from './scripts/GLTFLoader.js';
+
+			var scene, renderer, camera, stats;
+			var model1, model2, model3, mixer1, mixer2, mixer3, clock;
+			var enviroment,controls;
+
+			var actionFadeControls = [];
+			var levels = [];
+			var models = [];
+			var neck, waist;
+			var idleAction, walkAction, runAction;
+			var idleWeight, walkWeight, runWeight;
+			var actions, settings;
+
+			var singleStepMode = false;
+			var sizeOfNextStep = 0;
+			var webpageloader = document.getElementById('js-loader');
+			init();
+
+
+			//SENDS A COOKIE TO THE WEBPAGES WITH USER'S CHARACTER SELECTION 
+			//GIVE IT A STRING PARAMETER FROM THIS LIST: {"zuck","bogdanoff","elon"}
+			function chooseChar(char)
+            {
+				//add a cookie of the selection to each stage's html
+				//by default they expire when browser closes
+                document.cookie = "character = " + char + "; path=./stage1.html";
+                document.cookie = "character = " + char + "; path=./stage2.html";
+                document.cookie = "character = " + char + "; path=./stage3.html";
+				document.cookie = "character = " + char + "; path=./end.html";
+            }
+
+
+
+			function init() {
+
+				var container = document.getElementById( 'container' );
+
+				camera = new THREE.PerspectiveCamera( 45, window.innerWidth / window.innerHeight, 1, 1000 );
+				camera.position.set( 0, 0, - 4 );
+				camera.lookAt( 0, 1, 0 );
+				//var listener = new THREE.AudioListener();
+				//camera.add(listener);
+
+				clock = new THREE.Clock();
+
+				scene = new THREE.Scene();
+
+				enviroment = getSkyBox();
+				scene.add(enviroment);
+				var hemiLight = new THREE.HemisphereLight( 0xffffff, 0x444444 );
+				hemiLight.position.set( 0, 20, 0 );
+				scene.add( hemiLight );
+
+				var dirLight = new THREE.DirectionalLight( 0xffffff );
+				dirLight.position.set( - 3, 10, - 10 );
+				dirLight.castShadow = true;
+				dirLight.shadow.camera.top = 2;
+				dirLight.shadow.camera.bottom = - 2;
+				dirLight.shadow.camera.left = - 2;
+				dirLight.shadow.camera.right = 2;
+				dirLight.shadow.camera.near = 0.1;
+				dirLight.shadow.camera.far = 40;
+				scene.add( dirLight );
+
+				// addind the three models
+				getModel1();
+				getModel2();
+				getModel3();
+
+				createPanel();
+				installOrbitControls(camera,container);
+				renderer = new THREE.WebGLRenderer( { antialias: true } );
+				renderer.setPixelRatio( window.devicePixelRatio );
+				renderer.setSize( window.innerWidth, window.innerHeight );
+				renderer.outputEncoding = THREE.sRGBEncoding;
+				renderer.shadowMap.enabled = true;
+				container.appendChild( renderer.domElement );
+
+				stats = new Stats();
+
+				window.addEventListener( 'resize', onWindowResize, false );
+
+			}
+			// this function loads the default model and set its visibility to true
+			function getModel1(){
+				var loader = new GLTFLoader();
+				loader.load( './models/zuck/scene.gltf', function ( gltf ) {
+
+					model1 = gltf.scene;
+					scene.add( model1 );
+					model1.scale.set(0.7,0.7,0.7);
+					model1.rotation.set(0,Math.PI,0);
+					webpageloader.remove(); //remove the loader on the canvas
+					model1.position.y = -1;
+
+					var animations = gltf.animations;
+
+					mixer1 = new THREE.AnimationMixer( model1 );
+					runAction = mixer1.clipAction( animations[0] );
+					runAction.play();
+					mixer2 = mixer3 =mixer1;/* to avoid errors of undefined mixer2, mixer3 in the animate function
+											the mixer2 and mixer3 will be set to appropiate mixers in their respective models
+											*/
+					 
+					animate();
+
+				} );
+			}
+			//this function add model 2 with its visibility set to false 
+			function getModel2(){
+				var loader = new GLTFLoader();
+				loader.load( './models/elon/scene.gltf', function ( gltf ) {
+
+					model2 = gltf.scene;
+					scene.add( model2 );
+					model2.visible = false;
+					model2.scale.set(0.7,0.7,0.7);
+					model2.rotation.set(0,Math.PI,0);
+					model2.position.y = -1;
+
+					var animations = gltf.animations;
+
+					mixer2 = new THREE.AnimationMixer( model2 );
+					runAction = mixer2.clipAction( animations[0] );
+					runAction.play();
+					animate();
+
+				} );
+			}
+			//this function add model 3 with its visibility set to false
+			function getModel3(){
+				var loader = new GLTFLoader();
+				loader.load( './models/bogdanoff/scene.gltf', function ( gltf ) {
+
+					model3 = gltf.scene;
+					scene.add( model3 );
+					model3.visible = false;
+					model3.scale.set(0.013,0.013,0.013);
+					model3.rotation.set(0,Math.PI,0);
+					model3.position.y = -1;
+
+					var animations = gltf.animations;
+
+					mixer3 = new THREE.AnimationMixer( model3 );
+					runAction = mixer3.clipAction( animations[0] );
+					runAction.play();
+					animate();
+
+				} );
+			}
+			//the function creates and returns the skybox
+			function getSkyBox(){
+				var skyBoxMaterial = [];
+				var texture1 = new THREE.TextureLoader().load("textures/cube/pisa/px.png");   // Note:  The order in which
+				var texture2 = new THREE.TextureLoader().load("textures/cube/pisa/nx.png");  //   the images are listed is
+				var texture3 = new THREE.TextureLoader().load("textures/cube/pisa/py.png");  //   important!
+				var texture4 = new THREE.TextureLoader().load("textures/cube/pisa/ny.png"); 
+				var texture5 = new THREE.TextureLoader().load("textures/cube/pisa/pz.png");   
+				var texture6 = new THREE.TextureLoader().load("textures/cube/pisa/nz.png");
+
+				skyBoxMaterial.push(new THREE.MeshBasicMaterial({color:'white',map: texture1}));
+				skyBoxMaterial.push(new THREE.MeshBasicMaterial({color:'white',map: texture2}));
+				skyBoxMaterial.push(new THREE.MeshBasicMaterial({color:'white',map: texture3}));
+				skyBoxMaterial.push(new THREE.MeshBasicMaterial({color:'white',map: texture4}));
+				skyBoxMaterial.push(new THREE.MeshBasicMaterial({color:'white',map: texture5}));
+				skyBoxMaterial.push(new THREE.MeshBasicMaterial({color:'white',map: texture6}));
+
+				for (var i=0; i<6; i++)
+					skyBoxMaterial[i].side = THREE.BackSide;
+
+				var skyboxG = new THREE.BoxGeometry(1000,1000,1000);
+				var skybox = new THREE.Mesh(skyboxG,skyBoxMaterial);
+				return skybox;
+			}
+
+			function createPanel() {
+
+				var panel = new GUI( { width: 310 } );
+
+				var folder1 = panel.addFolder( 'game' );
+				var folder2 = panel.addFolder( 'Models' );
+
+				settings = {
+					'start':function(){
+						chooseChar("");
+						window.location.href = 'stage1.html';
+					},
+					'start with zuck':function(){  // switch html files
+
+						chooseChar("zuck");
+						window.location.href = 'stage1.html';
+
+					},
+					'start with elon':function(){  // switch html files
+
+						chooseChar("elon");
+						window.location.href = 'stage1.html';
+
+					},
+					'start with bogdanoff':function(){  // switch html files
+						
+						chooseChar("bogdanoff");
+						window.location.href = 'stage1.html';
+						
+
+					},
+					/*set the appropriate models visibility according to the user choice*/
+					'zuck':function(){
+						model1.visible = true;
+						model2.visible = false;
+						model3.visible = false;
+					},
+					'elon':function(){
+						model1.visible = false;
+						model2.visible = true;
+						model3.visible = false;
+					},
+					'bogdanoff':function(){ 
+						model1.visible = false;
+						model2.visible = false;
+						model3.visible = true;
+					}
+				};
+				
+				levels.push(folder1.add(settings, 'start'));
+				levels.push(folder1.add(settings, 'start with zuck'));
+				levels.push(folder1.add(settings, 'start with elon'));
+				levels.push(folder1.add(settings, 'start with bogdanoff'));
+				models.push(folder2.add(settings, 'zuck'));
+				models.push(folder2.add(settings, 'elon'));
+				models.push(folder2.add(settings, 'bogdanoff'))
+				folder1.open();
+				folder2.open();
+
+			}
+
+			function onWindowResize() {
+
+				camera.aspect = window.innerWidth / window.innerHeight;
+				camera.updateProjectionMatrix();
+
+				renderer.setSize( window.innerWidth, window.innerHeight );
+
+			}
+			function installOrbitControls(camera, canvas) {
+				controls = new OrbitControls(camera,canvas);
+				controls.noPan = true;
+				controls.noZoom = true;
+				/*limit zoom to avoid breaking the skybox*/
+				controls.minDistance = 1;
+				controls.maxDistance = 15;
+				controls.staticMoving = true;
+				function move() {
+					controls.update();
+				}
+				function down() {
+					document.addEventListener("mousemove", move, false);
+				}
+				function up() {
+					document.removeEventListener("mousemove", move, false);
+				}
+				function touch(event) {
+					if (event.touches.length == 1) {
+						move();
+					}
+				}
+				canvas.addEventListener("mousedown", down, false);
+				canvas.addEventListener("touchmove", touch, false);
+			}
+
+			function animate() {
+
+				// Render loop
+
+				requestAnimationFrame( animate );
+
+				var mixer1UpdateDelta = clock.getDelta();
+				var mixer2UpdateDelta = mixer1UpdateDelta;
+				var mixer3UpdateDelta = mixer1UpdateDelta;
+				// Update the animation mixers, and render this frame
+
+				mixer1.update( mixer1UpdateDelta );
+				renderer.render( scene, camera );
+				mixer2.update( mixer2UpdateDelta );
+				renderer.render( scene, camera );
+				mixer3.update( mixer3UpdateDelta );
+				renderer.render( scene, camera );
+
+			}
+
+		</script>
+
+	</body>
+</html>

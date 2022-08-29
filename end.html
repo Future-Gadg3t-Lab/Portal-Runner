@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>running game</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+		<link type="text/css" rel="stylesheet" href="css/main.css">
+		<link rel="stylesheet" type="text/css" href="./css/levelStyle.css">
+		<style>		
+			.ac {  /* prevent dat-gui from being selected */
+				-webkit-user-select: none;
+				-moz-user-select: none;
+				-ms-user-select: none;
+				user-select: none;
+			}
+		</style>
+	</head>s
+	<body >
+		<div class="loading" id="js-loader">
+			<div class="loader"></div>
+		</div>
+		<div id="container"></div>
+		<div id="info">
+			<h3 id="info-head">Welcome to Sweden!</h3>
+			<p id="info-text">
+				<b> Congragulations </b> for completing the game.
+				If you want to play as another character click restart it.
+			</p>
+		</div>
+		<script type="module">
+
+			import * as THREE from './scripts/build/three.module.js';
+
+			import Stats from './scripts/stats.module.js';
+			import { GUI } from './scripts/dat.gui.module.js';
+			import {OrbitControls} from './scripts/OrbitControls.js';
+			import { GLTFLoader } from './scripts/GLTFLoader.js';
+
+			var scene, renderer, camera, stats;
+			var model1, model2, model3, mixer1, mixer2, mixer3, clock;
+			var enviroment,controls;
+
+			var actionFadeControls = [];
+			var levels = [];
+			var models = [];
+			var neck, waist;
+			var idleAction, walkAction, runAction;
+			var idleWeight, walkWeight, runWeight;
+			var actions, settings;
+
+			var singleStepMode = false;
+			var sizeOfNextStep = 0;
+			var webpageloader = document.getElementById('js-loader');
+
+            var playerChoice;
+            var alpha;
+
+			init();
+
+			function init() {
+
+				var container = document.getElementById( 'container' );
+
+				camera = new THREE.PerspectiveCamera( 45, window.innerWidth / window.innerHeight, 1, 1000 );
+				camera.position.set( 0, 0, - 4 );
+				camera.lookAt( 0, 1, 0 );
+				//var listener = new THREE.AudioListener();
+				//camera.add(listener);
+
+				clock = new THREE.Clock();
+
+				scene = new THREE.Scene();
+
+				enviroment = getSkyBox();
+				scene.add(enviroment);
+				var hemiLight = new THREE.HemisphereLight( 0xffffff, 0x444444 );
+				hemiLight.position.set( 0, 20, 0 );
+				scene.add( hemiLight );
+
+				var dirLight = new THREE.DirectionalLight( 0xffffff );
+				dirLight.position.set( - 3, 10, - 10 );
+				dirLight.castShadow = true;
+				dirLight.shadow.camera.top = 2;
+				dirLight.shadow.camera.bottom = - 2;
+				dirLight.shadow.camera.left = - 2;
+				dirLight.shadow.camera.right = 2;
+				dirLight.shadow.camera.near = 0.1;
+				dirLight.shadow.camera.far = 40;
+				scene.add( dirLight );
+
+                 //get player choice from cookie
+                 playerChoice = document.cookie.split("=")[1];
+                if(playerChoice != "zuck" && playerChoice != "bogdanoff" && playerChoice != "elon") //if no selection was made just let zuck be default]
+                {
+                    playerChoice = "zuck";
+                }
+
+				// addind the three models
+				getModel1();
+
+				createPanel();
+				installOrbitControls(camera,container);
+				renderer = new THREE.WebGLRenderer( { antialias: true } );
+				renderer.setPixelRatio( window.devicePixelRatio );
+				renderer.setSize( window.innerWidth, window.innerHeight );
+				renderer.outputEncoding = THREE.sRGBEncoding;
+				renderer.shadowMap.enabled = true;
+				container.appendChild( renderer.domElement );
+
+				stats = new Stats();
+
+				window.addEventListener( 'resize', onWindowResize, false );
+
+               
+
+			}
+			// this function loads the default model and set its visibility to true
+			function getModel1(){
+				var loader = new GLTFLoader();
+				loader.load( './models/'+ playerChoice +'/scene.gltf', function ( gltf ) {
+					model1 = gltf.scene;
+					scene.add( model1 );
+
+                    //this scales the different models accordingly as they have different sizes
+                    if(playerChoice == "zuck") 
+                    {
+                        alpha = 0.7;
+                    }else if(playerChoice == "bogdanoff")
+                    {
+                        alpha = 0.012;
+                    }else
+                    {
+                        alpha = 0.7;
+                    }
+
+
+					model1.scale.set(alpha, alpha, alpha);
+					model1.rotation.set(0,Math.PI,0);
+					webpageloader.remove(); //remove the loader on the canvas
+					model1.position.y = -1;
+
+					var animations = gltf.animations;
+
+					mixer1 = new THREE.AnimationMixer( model1 );
+					runAction = mixer1.clipAction( animations[0] );
+					//runAction.play();
+					mixer2 = mixer3 =mixer1;/* to avoid errors of undefined mixer2, mixer3 in the animate function
+											the mixer2 and mixer3 will be set to appropiate mixers in their respective models
+											*/
+					 
+					animate();
+
+				} );
+			}
+			
+			//the function creates and returns the skybox
+			function getSkyBox(){
+				var skyBoxMaterial = [];
+				var texture1 = new THREE.TextureLoader().load("textures/cube/sweden/posx_3.jpg");   // Note:  The order in which
+				var texture2 = new THREE.TextureLoader().load("textures/cube/sweden/negx_3.jpg");  //   the images are listed is
+				var texture3 = new THREE.TextureLoader().load("textures/cube/sweden/posy_3.jpg");  //   important!
+				var texture4 = new THREE.TextureLoader().load("textures/cube/sweden/negy_3.jpg"); 
+				var texture5 = new THREE.TextureLoader().load("textures/cube/sweden/posz_3.jpg");   
+				var texture6 = new THREE.TextureLoader().load("textures/cube/sweden/negz_3.jpg");
+
+			
+
+				skyBoxMaterial.push(new THREE.MeshBasicMaterial({color:'white',map: texture1}));
+				skyBoxMaterial.push(new THREE.MeshBasicMaterial({color:'white',map: texture2}));
+				skyBoxMaterial.push(new THREE.MeshBasicMaterial({color:'white',map: texture3}));
+				skyBoxMaterial.push(new THREE.MeshBasicMaterial({color:'white',map: texture4}));
+				skyBoxMaterial.push(new THREE.MeshBasicMaterial({color:'white',map: texture5}));
+				skyBoxMaterial.push(new THREE.MeshBasicMaterial({color:'white',map: texture6}));
+
+				for (var i=0; i<6; i++)
+					skyBoxMaterial[i].side = THREE.BackSide;
+
+				var skyboxG = new THREE.BoxGeometry(1000,1000,1000);
+				var skybox = new THREE.Mesh(skyboxG,skyBoxMaterial);
+				return skybox;
+			}
+
+			function createPanel() {
+
+				var panel = new GUI( { width: 310 } );
+
+				var folder1 = panel.addFolder( 'game' );
+				settings = {
+					'restart game':function(){  // switch html files
+						window.location.href = 'index.html';
+
+					}
+				};
+		
+				levels.push(folder1.add(settings, 'restart game'));
+				folder1.open();
+
+			}
+
+			function onWindowResize() {
+
+				camera.aspect = window.innerWidth / window.innerHeight;
+				camera.updateProjectionMatrix();
+
+				renderer.setSize( window.innerWidth, window.innerHeight );
+
+			}
+			function installOrbitControls(camera, canvas) {
+				controls = new OrbitControls(camera,canvas);
+				controls.noPan = true;
+				controls.noZoom = true;
+				/*limit zoom to avoid breaking the skybox*/
+				controls.minDistance = 1;
+				controls.maxDistance = 15;
+				controls.staticMoving = true;
+				function move() {
+					controls.update();
+				}
+				function down() {
+					document.addEventListener("mousemove", move, false);
+				}
+				function up() {
+					document.removeEventListener("mousemove", move, false);
+				}
+				function touch(event) {
+					if (event.touches.length == 1) {
+						move();
+					}
+				}
+				canvas.addEventListener("mousedown", down, false);
+				canvas.addEventListener("touchmove", touch, false);
+			}
+
+			function animate() {
+
+				// Render loop
+
+				requestAnimationFrame( animate );
+
+				var mixer1UpdateDelta = clock.getDelta();
+				var mixer2UpdateDelta = mixer1UpdateDelta;
+				var mixer3UpdateDelta = mixer1UpdateDelta;
+				// Update the animation mixers, and render this frame
+
+				mixer1.update( mixer1UpdateDelta );
+				renderer.render( scene, camera );
+				mixer2.update( mixer2UpdateDelta );
+				renderer.render( scene, camera );
+				mixer3.update( mixer3UpdateDelta );
+				renderer.render( scene, camera );
+
+			}
+
+		</script>
+
+	</body>
+</html>
